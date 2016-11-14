@@ -1,0 +1,32 @@
+* Styx: a nix-based multi-repo Haskell project manager
+
+Styx: there is no looking back.
+
+In its present form, Styx is a convenient wrapper around cabal2nix for
+projects depending on external repos.
+
+** How to use
+
+In your cabal project, create a ~styx.yaml~ file like so:
+
+#+BEGIN_EXAMPLE
+external-repos:
+  mtl: https://github.com/jyp/my-patched-version-of-mtl.git
+  containers: https://github.com/jyp/my-patched-version-of-containers.git
+#+END_EXAMPLE
+
+Run
+
+#+BEGIN_SRC shell
+styx configure
+#+END_SRC
+
+This will create one nix file for each of ~external-repos~, and a
+suitable ~shell.nix~. You can then run ~nix-shell --run "cabal
+configure"~ in an environment with the required dependencies (at the
+right version).
+
+** TODO:
+
+- Support multiple cabal projects in a sandbox
+
