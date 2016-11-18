@@ -2,7 +2,7 @@
 
 Styx: there is no looking back.
 
-In its present form, Styx is a convenient wrapper around cabal2nix for
+In its present form, Styx is a convenient wrapper around ~cabal2nix~ for
 projects depending on external repos.
 
 ** How to use
@@ -10,9 +10,11 @@ projects depending on external repos.
 In your cabal project, create a ~styx.yaml~ file like so:
 
 #+BEGIN_EXAMPLE
-external-repos:
-  mtl: https://github.com/jyp/my-patched-version-of-mtl.git
-  containers: https://github.com/jyp/my-patched-version-of-containers.git
+nix-repos:
+  mtl:
+    location: https://github.com/jyp/my-patched-version-of-mtl.git
+  containers:
+    location: https://github.com/jyp/my-patched-version-of-containers.git
 #+END_EXAMPLE
 
 Run
@@ -25,6 +27,22 @@ This will create one nix file for each of ~external-repos~, and a
 suitable ~shell.nix~. You can then run ~nix-shell --run "cabal
 configure"~ in an environment with the required dependencies (at the
 right version).
+
+*** Outside of a project
+
+You can setup an environment outside of a cabal project by adding a
+section to styx.yaml, as follows:
+
+#+BEGIN_SRC yaml
+shell:
+  extra-haskell-packages:
+    -mtl
+    -base
+#+END_SRC
+
+In such a case, the packages listed in ~extra-haskell-packages~ will
+be available in the nix-shell. ~cabal2nix~ will not be run on the
+current package.
 
 ** TODO:
 
