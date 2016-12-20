@@ -24,14 +24,17 @@ opts = subparser
 
 data Repo = Repo {repoLocation :: String}
 data Config = Config {cfgExternalPackages :: Map String Repo
-                     ,cfgShell :: Maybe ShellConfig}
+                     ,cfgShell :: Maybe ShellConfig
+                     ,cfgNixVersion :: Maybe GitVersion}
 
-data ShellConfig = ShellConfig {shellHsPackages :: [String]}
+data ShellConfig = ShellConfig {shellHsPackages :: [String]
+                               ,shellExPackages :: [String]}
 
 instance FromJSON Config where
   parseJSON (Object v) = Config <$>
                          v .:? "nix-repos" .!= M.empty  <*> -- list of external repos to depend on
-                         v .:? "shell"                      -- Just if not building a package
+                         v .:? "shell"                  <*> -- Just if not building a package
+                         v .:? "nixpkgs"
   parseJSON invalid = typeMismatch "Config" invalid
 
 instance FromJSON Repo where
@@ -41,9 +44,18 @@ instance FromJSON Repo where
 
 instance FromJSON ShellConfig where
   parseJSON (Object v) = ShellConfig  <$>
-                         v .:? "extra-haskell-packages" .!= []
+                         v .:? "extra-haskell-packages" .!= []  <*>
                          -- list of (extra) haskell packages to put in the shell env.
+                         v .:? "extra-external-packages" .!= []
+                         -- list of non-haskell packages to put in the shell env.
   parseJSON invalid = typeMismatch "ShellConfig" invalid
+
+data GitVersion = GitVersion {gitCommit :: String, gitSha :: String}
+instance FromJSON GitVersion where
+  parseJSON (Object v) = GitVersion <$>
+                         v .: "commit" <*>
+                         v .: "sha256"   -- find here: curl -LO https://nixos.org/channels/nixpkgs-unstable
+  parseJSON invalid = typeMismatch "Git version" invalid
 
 main :: IO ()
 main = do
@@ -55,14 +67,25 @@ main = do
   forM_ pkgs $ \(n,Repo loc) -> do
     callCommand $ "cabal2nix " ++ loc ++ " > " ++ n ++ ".nix"
   writeFile "shell.nix" $ unlines $
-    ["{ nixpkgs ? import <nixpkgs> {}, compiler ? " ++ (show defCompil) ++ " }:"
-    ,"with (import <nixpkgs> {}).pkgs;"
-    ,"let hp = haskell.packages.${compiler}.override{"
-    ,"    overrides = self: super: {"
-    ] ++
-    ["      " ++ n ++ " = self.callPackage ./" ++ n ++ ".nix {};" | (n,_) <- pkgs] ++
-    ["      };};"] ++
-    case cfgShell of
+    ["{ nixpkgs ? import <nixpkgs> {}, compiler ? " ++ (show defCompil) ++ " }:"]
+    ++ case cfgNixVersion of
+      Nothing -> ["let nixpkgs' = nixpkgs;"]
+      Just (GitVersion {..}) ->
+        ["let nixpkgs_source = nixpkgs.fetchFromGitHub {"
+        ,"      owner = \"NixOS\";"
+        ,"      repo = \"nixpkgs\";"
+        ,"      rev = " ++ show gitCommit ++ ";"
+        ,"      sha256 = " ++ show gitSha ++ ";"
+        ,"    };"
+        ,"    nixpkgs' = (import nixpkgs_source){};"
+        ]
+    ++ ["in with nixpkgs'.pkgs;"
+       ,"let hp = haskell.packages.${compiler}.override{"
+       ,"    overrides = self: super: {"
+       ]
+    ++ ["      " ++ n ++ " = self.callPackage ./" ++ n ++ ".nix {};" | (n,_) <- pkgs]
+    ++ ["      };};"]
+    ++ case cfgShell of
       Just (ShellConfig {..}) ->
         ["ghc = hp.ghcWithPackages (ps: with ps; ["
         , intercalate " " (map fst pkgs ++ shellHsPackages)
@@ -70,7 +93,7 @@ main = do
         ,"in"
         ,"pkgs.stdenv.mkDerivation {"
         ,"  name = \"my-haskell-env-0\";"
-        ,"  buildInputs = [ ghc ];"
+        ,"  buildInputs = [ ghc " ++ intercalate " " (map parens shellExPackages) ++ " ];"
         ,"  shellHook = \"eval $(egrep ^export ${ghc}/bin/ghc)\";"
         ,"}"]
       Nothing ->
@@ -78,3 +101,6 @@ main = do
         ,"in locpkg.env"
         ]
 
+
+parens :: [Char] -> [Char]
+parens x = "(" ++ x ++ ")"
