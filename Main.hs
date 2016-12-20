@@ -18,6 +18,32 @@ defCompil = "ghc801"
 
 data Command = Configure
 
+
+{-
+TODO: (not done yet)
+
+- SETUP:
+- cabal sandbox init
+
+- for every {local package}
+  - find the cabal file
+    - add all deps of the cabal file to the list of deps
+    - add the local package to the sandbox. (cabal sandbox add-source local-package)
+
+- for every external package
+  - do cabal2nix
+
+- add the dependencies + external packages - local packages to the shell
+
+- BUILD:
+- nix-shell "cabal install"
+
+- REPL:
+
+- nix-shell "cabal repl ..."
+
+-}
+
 opts :: Options.Applicative.Parser Command
 opts = subparser
   (command "configure" (info (pure Configure) (progDesc "Generate .nix files")))
@@ -49,6 +75,7 @@ main :: IO ()
 main = do
   Config{..} <- loadYamlSettings ["styx.yaml"] [] ignoreEnv
   let pkgs = M.assocs cfgExternalPackages
+  
   case cfgShell of
     Nothing -> callCommand "cabal2nix . > default.nix"
     _ -> return ()
