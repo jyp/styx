@@ -12,7 +12,7 @@ import Data.Map (Map)
 import Data.Aeson.Types (typeMismatch)
 import Options.Applicative
 import Data.List (intercalate)
-
+import System.Directory (createDirectoryIfMissing)
 defCompil :: [Char]
 defCompil = "ghc801"
 
@@ -49,32 +49,31 @@ opts = subparser
   (command "configure" (info (pure Configure) (progDesc "Generate .nix files")))
 
 data Repo = Repo {repoLocation :: String}
-data Config = Config {cfgExternalPackages :: Map String Repo
-                     ,cfgShell :: Maybe ShellConfig
-                     ,cfgNixVersion :: Maybe GitVersion}
+data Config =
+  Config {cfgNixpkgsVersion :: Maybe GitVersion
+         ,cfgLocalPackages :: Map String Repo -- list of local packages (must be on the local filesystem)
+         ,cfgExternalSourceDeps :: Map String Repo -- mapping of package names to locations as understood by cabal2nix
+         ,cfgNixHsDeps :: [String]
+         -- ^ haskell deps to fetch directly from nix (usually empty for a cabal project, as the cabal file will specifiy deps)
+         ,cfgNixOtherDeps :: [String]
+         -- ^ Other nix dependencies (non haskell packages)
+         }
 
-data ShellConfig = ShellConfig {shellHsPackages :: [String]
-                               ,shellExPackages :: [String]}
+data ShellConfig = ShellConfig {}
 
 instance FromJSON Config where
   parseJSON (Object v) = Config <$>
-                         v .:? "nix-repos" .!= M.empty  <*> -- list of external repos to depend on
-                         v .:? "shell"                  <*> -- Just if not building a package
-                         v .:? "nixpkgs"
+                         v .:? "nixpkgs" <*>
+                         v .:? "local-packages" .!= M.empty  <*>
+                         v .:? "source-deps" .!= M.empty  <*>
+                         v .:? "nix-deps" .!= []  <*>
+                         v .:? "non-haskell-deps" .!= []
   parseJSON invalid = typeMismatch "Config" invalid
 
 instance FromJSON Repo where
   parseJSON (Object v) = Repo  <$>
                          v .: "location"               -- location of the repo (in cabal2nix format)
   parseJSON invalid = typeMismatch "Location" invalid
-
-instance FromJSON ShellConfig where
-  parseJSON (Object v) = ShellConfig  <$>
-                         v .:? "extra-haskell-packages" .!= []  <*>
-                         -- list of (extra) haskell packages to put in the shell env.
-                         v .:? "extra-external-packages" .!= []
-                         -- list of non-haskell packages to put in the shell env.
-  parseJSON invalid = typeMismatch "ShellConfig" invalid
 
 data GitVersion = GitVersion {gitCommit :: String, gitSha :: String}
 instance FromJSON GitVersion where
@@ -83,19 +82,20 @@ instance FromJSON GitVersion where
                          v .: "sha256"   -- find here: curl -LO https://nixos.org/channels/nixpkgs-unstable
   parseJSON invalid = typeMismatch "Git version" invalid
 
+locToNix :: String -> Repo -> IO ()
+locToNix p (Repo loc) = do
+    callCommand $ "cabal2nix " ++ loc ++ " > .styx/" ++ p ++ ".nix"
+
 main :: IO ()
 main = do
   Config{..} <- loadYamlSettings ["styx.yaml"] [] ignoreEnv
-  let pkgs = M.assocs cfgExternalPackages
-  
-  case cfgShell of
-    Nothing -> callCommand "cabal2nix . > default.nix"
-    _ -> return ()
-  forM_ pkgs $ \(n,Repo loc) -> do
-    callCommand $ "cabal2nix " ++ loc ++ " > " ++ n ++ ".nix"
-  writeFile "shell.nix" $ unlines $
+  createDirectoryIfMissing False ".styx"
+  callCommand "cabal sandbox init --sandbox .styx"
+  forM_ (M.assocs cfgLocalPackages) (uncurry locToNix)
+  forM_ (M.assocs cfgExternalSourceDeps) (uncurry locToNix)
+  writeFile ".styx/shell.nix" $ unlines $
     ["{ nixpkgs ? import <nixpkgs> {}, compiler ? " ++ (show defCompil) ++ " }:"]
-    ++ case cfgNixVersion of
+    ++ case cfgNixpkgsVersion of
       Nothing -> ["let nixpkgs' = nixpkgs;"]
       Just (GitVersion {..}) ->
         ["let nixpkgs_source = nixpkgs.fetchFromGitHub {"
@@ -110,24 +110,27 @@ main = do
        ,"let hp = haskell.packages.${compiler}.override{"
        ,"    overrides = self: super: {"
        ]
-    ++ ["      " ++ n ++ " = self.callPackage ./" ++ n ++ ".nix {};" | (n,_) <- pkgs]
-    ++ ["      };};"]
-    ++ case cfgShell of
-      Just (ShellConfig {..}) ->
-        ["ghc = hp.ghcWithPackages (ps: with ps; ["
-        , intercalate " " (map fst pkgs ++ shellHsPackages)
-        ,"  ]);"
-        ,"in"
-        ,"pkgs.stdenv.mkDerivation {"
-        ,"  name = \"my-haskell-env-0\";"
-        ,"  buildInputs = [ ghc " ++ intercalate " " (map parens shellExPackages) ++ " ];"
-        ,"  shellHook = \"eval $(egrep ^export ${ghc}/bin/ghc)\";"
-        ,"}"]
-      Nothing ->
-        ["    locpkg = hp.callPackage ./default.nix { };"
-        ,"in locpkg.env"
-        ]
-
+    ++ ["      " ++ n ++ " = self.callPackage ./" ++ n ++ ".nix {};"
+       | n <- (M.keys cfgExternalSourceDeps ++ M.keys cfgLocalPackages)]
+    ++ ["      };};"
+       ,"     getHaskellDeps = ps: path:"
+       ,"        let f = import path;"
+       ,"            gatherDeps = {buildDepends ? [], libraryHaskellDepends ? [], executableHaskellDepends ? [], ...}:"
+       ,"               libraryHaskellDepends ++ executableHaskellDepends;"
+       ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
+       ,"        in x;"
+       ,"ghc = hp.ghcWithPackages (ps: with ps; subtractLists"
+       , "[" ++ intercalate " " (M.keys cfgLocalPackages) ++ "]"
+       , "(["
+       , intercalate " " (M.keys cfgExternalSourceDeps ++ cfgNixHsDeps)
+       ,"  ] " ++ concat [" ++ getHaskellDeps ps ./" ++ n | n <- M.keys cfgLocalPackages] ++ "));"
+       ,"in"
+       ,"pkgs.stdenv.mkDerivation {"
+       ,"  name = \"my-haskell-env-0\";"
+       ,"  buildInputs = [ ghc " ++ intercalate " " (map parens cfgNixOtherDeps) ++ "];" -- todo system build inputs here
+       ,"  shellHook = \"eval $(egrep ^export ${ghc}/bin/ghc)\";"
+       ,"}"]
+  
 
 parens :: [Char] -> [Char]
 parens x = "(" ++ x ++ ")"
