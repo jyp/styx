@@ -5,49 +5,43 @@
 module Main where
 import System.Process
 import Control.Monad.Identity
-import Data.Yaml
+import Data.Yaml hiding (Parser)
 import Data.Yaml.Config
 import qualified Data.Map as M
 import Data.Map (Map)
 import Data.Aeson.Types (typeMismatch)
 import Options.Applicative
 import Data.List (intercalate)
-import System.Directory (createDirectoryIfMissing)
-defCompil :: [Char]
-defCompil = "ghc801"
+import System.Directory (createDirectoryIfMissing, canonicalizePath)
+import Prelude hiding (log)
 
-data Command = Configure
+parens :: [Char] -> [Char]
+parens x = "(" ++ x ++ ")"
 
+-----------------------------------------
+-- OPTIONS
 
-{-
-TODO: (not done yet)
+data Command = Configure | Cabal [String] | Clean
 
-- SETUP:
-- cabal sandbox init
+withInfo :: Parser a -> String -> ParserInfo a
+withInfo opts desc = info (helper <*> opts) $ progDesc desc
 
-- for every {local package}
-  - find the cabal file
-    - add all deps of the cabal file to the list of deps
-    - add the local package to the sandbox. (cabal sandbox add-source local-package)
+parseExec :: Parser Command
+parseExec = (\rest -> Cabal (["exec","--"] ++ rest)) <$> some (argument str (metavar "COMMAND"))
 
-- for every external package
-  - do cabal2nix
+parseCommand :: Parser Command
+parseCommand = subparser $
+    command "configure" (pure Configure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
+    command "clean"     (pure Clean `withInfo` "Remove all styx working files") <>
+    command "build"     (pure (Cabal ["install"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
+    command "repl"      (pure (Cabal ["sandbox","repl"]) `withInfo` "Start a repl in the nix-shell'ed cabal sandbox") <>
+    command "exec"      (parseExec `withInfo` "Exec a command in the nix-shell'ed cabal sandbox")
 
-- add the dependencies + external packages - local packages to the shell
+main :: IO ()
+main = run =<< execParser (parseCommand `withInfo` "Wrapper around nix-shell, cabal2nix and cabal")
 
-- BUILD:
-- nix-shell "cabal install"
-
-- REPL:
-
-- nix-shell "cabal repl ..."
-
--}
-
-opts :: Options.Applicative.Parser Command
-opts = subparser
-  (command "configure" (info (pure Configure) (progDesc "Generate .nix files")))
-
+--------------------------------
+-- Configuration 
 data Repo = Repo {repoLocation :: String}
 data Config =
   Config {cfgNixpkgsVersion :: Maybe GitVersion
@@ -57,6 +51,7 @@ data Config =
          -- ^ haskell deps to fetch directly from nix (usually empty for a cabal project, as the cabal file will specifiy deps)
          ,cfgNixOtherDeps :: [String]
          -- ^ Other nix dependencies (non haskell packages)
+         ,cfgDefCompil :: String 
          }
 
 data ShellConfig = ShellConfig {}
@@ -67,7 +62,8 @@ instance FromJSON Config where
                          v .:? "local-packages" .!= M.empty  <*>
                          v .:? "source-deps" .!= M.empty  <*>
                          v .:? "nix-deps" .!= []  <*>
-                         v .:? "non-haskell-deps" .!= []
+                         v .:? "non-haskell-deps" .!= [] <*>
+                         v .:? "default-compiler" .!= "ghc801"
   parseJSON invalid = typeMismatch "Config" invalid
 
 instance FromJSON Repo where
@@ -82,19 +78,53 @@ instance FromJSON GitVersion where
                          v .: "sha256"   -- find here: curl -LO https://nixos.org/channels/nixpkgs-unstable
   parseJSON invalid = typeMismatch "Git version" invalid
 
+
+-----------------------------------------
+-- Program
+
 locToNix :: String -> Repo -> IO ()
 locToNix p (Repo loc) = do
-    callCommand $ "cabal2nix " ++ loc ++ " > .styx/" ++ p ++ ".nix"
+    cmd $ "cabal2nix " ++ loc ++ " > .styx/" ++ p ++ ".nix"
 
-main :: IO ()
-main = do
+canonicalizeLocalPath :: Repo -> IO Repo
+canonicalizeLocalPath (Repo d) = do
+  repoLocation <- canonicalizePath d
+  return (Repo {..})
+
+run :: Command -> IO ()
+run c = case c of
+  Configure -> configure
+  Cabal args -> do
+    _ <- cmd ("nix-shell .styx/shell.nix --run " ++ show (intercalate " " ("cabal":args)))
+    return ()
+  Clean -> cmd "rm -rf .styx"
+
+cmd :: String -> IO ()
+cmd x = do
+  putStrLn x
+  callCommand x
+
+log :: String -> IO ()
+log msg = putStrLn $ "STYX: " ++ msg
+
+configure :: IO ()
+configure = do
   Config{..} <- loadYamlSettings ["styx.yaml"] [] ignoreEnv
   createDirectoryIfMissing False ".styx"
-  callCommand "cabal sandbox init --sandbox .styx"
-  forM_ (M.assocs cfgLocalPackages) (uncurry locToNix)
+
+  log "Running cabal2nix for all local and external packages"
+  forM_ (M.assocs cfgLocalPackages) $ \(p,r) -> locToNix p =<< (canonicalizeLocalPath r)
   forM_ (M.assocs cfgExternalSourceDeps) (uncurry locToNix)
+
+  log "Initializing a sandbox in .styx"
+  cmd "cabal sandbox init --sandbox .styx"
+  log "Adding local packages as sources to the sandbox"
+  forM_ (M.assocs cfgLocalPackages) $ \(_,Repo loc) -> do
+    cmd ("cabal sandbox add-source " ++ loc)
+
+  log "Adding local packages as sources to the sandbox"
   writeFile ".styx/shell.nix" $ unlines $
-    ["{ nixpkgs ? import <nixpkgs> {}, compiler ? " ++ (show defCompil) ++ " }:"]
+    ["{ nixpkgs ? import <nixpkgs> {}, compiler ? " ++ (show cfgDefCompil) ++ " }:"]
     ++ case cfgNixpkgsVersion of
       Nothing -> ["let nixpkgs' = nixpkgs;"]
       Just (GitVersion {..}) ->
@@ -119,18 +149,14 @@ main = do
        ,"               libraryHaskellDepends ++ executableHaskellDepends;"
        ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
        ,"        in x;"
-       ,"ghc = hp.ghcWithPackages (ps: with ps; subtractLists"
+       ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
        , "[" ++ intercalate " " (M.keys cfgLocalPackages) ++ "]"
        , "(["
        , intercalate " " (M.keys cfgExternalSourceDeps ++ cfgNixHsDeps)
-       ,"  ] " ++ concat [" ++ getHaskellDeps ps ./" ++ n | n <- M.keys cfgLocalPackages] ++ "));"
+       ,"  ] " ++ concat [" ++ getHaskellDeps ps ./" ++ n ++ ".nix"| n <- M.keys cfgLocalPackages] ++ "));"
        ,"in"
        ,"pkgs.stdenv.mkDerivation {"
        ,"  name = \"my-haskell-env-0\";"
        ,"  buildInputs = [ ghc " ++ intercalate " " (map parens cfgNixOtherDeps) ++ "];" -- todo system build inputs here
        ,"  shellHook = \"eval $(egrep ^export ${ghc}/bin/ghc)\";"
        ,"}"]
-  
-
-parens :: [Char] -> [Char]
-parens x = "(" ++ x ++ ")"
