@@ -91,7 +91,7 @@ locToNix p (Repo {..}) = do
                           repoLocation, "> .styx/" ++ p ++ ".nix"]
 
 canonicalizeLocalPath :: Repo -> IO Repo
-canonicalizeLocalPath (Repo d) = do
+canonicalizeLocalPath (Repo {repoLocation = d,..}) = do
   repoLocation <- canonicalizePath d
   return (Repo {..})
 
@@ -123,8 +123,8 @@ configure = do
   log "Initializing a sandbox in .styx"
   cmd "cabal sandbox init --sandbox .styx"
   log "Adding local packages as sources to the sandbox"
-  forM_ (M.assocs cfgLocalPackages) $ \(_,Repo loc) -> do
-    cmd ("cabal sandbox add-source " ++ loc)
+  forM_ (M.assocs cfgLocalPackages) $ \(_,Repo {..}) -> do
+    cmd ("cabal sandbox add-source " ++ repoLocation)
 
   log "Adding local packages as sources to the sandbox"
   writeFile ".styx/shell.nix" $ unlines $
@@ -154,7 +154,7 @@ configure = do
        ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
        ,"        in x;"
        ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
-       , "[" ++ intercalate " " (M.keys cfgLocalPackages) ++ "]"
+       , "[" ++ intercalate " " (M.keys cfgLocalPackages) ++ "]" -- Here we remove the packages that we provide locally in the sandbox
        , "(["
        , intercalate " " (M.keys cfgExternalSourceDeps ++ cfgNixHsDeps)
        ,"  ] " ++ concat [" ++ getHaskellDeps ps ./" ++ n ++ ".nix"| n <- M.keys cfgLocalPackages] ++ "));"
