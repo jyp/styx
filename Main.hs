@@ -42,7 +42,8 @@ main = run =<< execParser (parseCommand `withInfo` "Wrapper around nix-shell, ca
 
 --------------------------------
 -- Configuration 
-data Repo = Repo {repoLocation :: String}
+data Repo = Repo {repoLocation :: String,
+                  repoRevision :: Maybe String}
 data Config =
   Config {cfgNixpkgsVersion :: Maybe GitVersion
          ,cfgLocalPackages :: Map String Repo -- list of local packages (must be on the local filesystem)
@@ -68,7 +69,8 @@ instance FromJSON Config where
 
 instance FromJSON Repo where
   parseJSON (Object v) = Repo  <$>
-                         v .: "location"               -- location of the repo (in cabal2nix format)
+                         v .: "location"  <*> -- location of the repo (in cabal2nix format)
+                         v .:? "revision"
   parseJSON invalid = typeMismatch "Location" invalid
 
 data GitVersion = GitVersion {gitCommit :: String, gitSha :: String}
@@ -83,8 +85,10 @@ instance FromJSON GitVersion where
 -- Program
 
 locToNix :: String -> Repo -> IO ()
-locToNix p (Repo loc) = do
-    cmd $ "cabal2nix " ++ loc ++ " > .styx/" ++ p ++ ".nix"
+locToNix p (Repo {..}) = do
+  cmd $ intercalate " " ["cabal2nix",
+                          maybe "" ("--revision=" ++) repoRevision,
+                          repoLocation, "> .styx/" ++ p ++ ".nix"]
 
 canonicalizeLocalPath :: Repo -> IO Repo
 canonicalizeLocalPath (Repo d) = do
