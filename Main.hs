@@ -34,7 +34,7 @@ parseCommand = subparser $
     command "configure" (pure Configure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
     command "clean"     (pure Clean `withInfo` "Remove all styx working files") <>
     command "build"     (pure (Cabal ["install"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
-    command "repl"      (pure (Cabal ["sandbox","repl"]) `withInfo` "Start a repl in the nix-shell'ed cabal sandbox") <>
+    command "repl"      (pure (Cabal ["repl"]) `withInfo` "Start a repl in the nix-shell'ed cabal sandbox") <>
     command "exec"      (parseExec `withInfo` "Exec a command in the nix-shell'ed cabal sandbox")
 
 main :: IO ()
