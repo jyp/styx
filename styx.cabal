@@ -14,7 +14,7 @@ build-type:     Simple
 
 executable styx
   default-language: Haskell2010
-  build-depends: base>=4
+  build-depends: base<=666
   build-depends: process>=1.1
   build-depends: yaml
   build-depends: filepath>=1.3
