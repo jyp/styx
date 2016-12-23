@@ -39,6 +39,12 @@ nix-deps:
 # In case you depend on other non-haskell tools or libs.
 non-haskell-deps:
     - z3
+
+# Optionally, one  ask for a specific version of nixpkgs:
+nixpkgs:
+  commit: 8ef3eaeb4e531929ec29a880cb4c67f790e5eb70
+  sha256: 4d2fae900d2d99ea294f4f412289af77152ac21d7b2e9ff23581ef11ea00831f
+
 #+END_EXAMPLE
 
 Then, the command
@@ -52,17 +58,14 @@ will create one nix file for each external package, a suitable
 
 *** Use
 
-#+BEGIN_SRC shell
-styx build
-#+END_SRC
-
-Will run ~cabal install~ in the sandbox, in the nix shell.
-
-~styx repl~ will also work. You can access the nix-shell and the
-sandbox manually too:
-
+You can then access  the sandbox, inside the nix shell, like so:
 #+BEGIN_SRC
 nix-shell .styx/shell.nix --run "cabal ..."
 #+END_SRC
 
-
+Styx provides a couple of convenience commands though:
+#+BEGIN_SRC shell
+$ styx build # runs cabal install in the sandbox
+$ styx repl # runs cabal repl in the sandbox
+$ styx exec <cmd> # runs cabal exec in the sandbox
+#+END_SRC
