@@ -5,11 +5,25 @@
 Styx is a convenient wrapper around ~cabal2nix~, ~nix-shell~ and
 ~cabal sandbox~.
 
-** How to use
+** Installation
 
-*** Configuration
+- get nix: https://nixos.org/nix/
+- install the prerequisites (cabal2nix and cabal)
 
-In your cabal project, create a ~styx.yaml~ file like so:
+  #+BEGIN_SRC shell
+  nix-env -f "<nixpkgs>" -iA haskellPackages.cabal2nix
+  nix-env -f "<nixpkgs>" -iA haskellPackages.cabal-install
+  #+END_SRC
+
+- install styx:
+  #+BEGIN_SRC shell
+  nix-env -f "<nixpkgs>" -iA haskellPackages.styx
+  #+END_SRC
+
+
+** Configuration
+
+In a directory of your choice, create a ~styx.yaml~ file like so:
 
 
 #+BEGIN_EXAMPLE
@@ -25,7 +39,7 @@ local-packages:
 # These will be compiled only once, by nix.
 source-deps:
   mtl:
-    location: https://github.com/mrawesome/awsome-patched-version-of-mtl.git
+    location: https://github.com/mrawesome/awsm-patched-version-of-mtl.git
 
 # If you want you can add other haskell nix packages to depend on.
 # Normally this is not necessary, because nix will track the dependencies on its own.
@@ -40,7 +54,7 @@ nix-deps:
 non-haskell-deps:
     - z3
 
-# Optionally, one  ask for a specific version of nixpkgs:
+# Optionally, one can ask for a specific version of nixpkgs:
 nixpkgs:
   commit: 8ef3eaeb4e531929ec29a880cb4c67f790e5eb70
   sha256: 4d2fae900d2d99ea294f4f412289af77152ac21d7b2e9ff23581ef11ea00831f
@@ -56,14 +70,14 @@ styx configure
 will create one nix file for each external package, a suitable
 ~shell.nix~, and a sandbox with sources for every local-package.
 
-*** Use
+** Use
 
-You can then access  the sandbox, inside the nix shell, like so:
+You can then access the sandbox, inside the nix shell, like so:
 #+BEGIN_SRC
 nix-shell .styx/shell.nix --run "cabal ..."
 #+END_SRC
 
-Styx provides a couple of convenience commands though:
+Styx provides a couple of convenience commands:
 #+BEGIN_SRC shell
 $ styx build # runs cabal install in the sandbox
 $ styx repl # runs cabal repl in the sandbox
