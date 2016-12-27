@@ -2,3 +2,5 @@
 *.hi
 *.o
 dist/
+/.styx
+cabal.sandbox.config
