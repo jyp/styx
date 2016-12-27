@@ -126,7 +126,7 @@ configure = do
   forM_ (M.assocs cfgLocalPackages) $ \(_,Repo {..}) -> do
     cmd ("cabal sandbox add-source " ++ repoLocation)
 
-  log "Adding local packages as sources to the sandbox"
+  log "Creating shell.nix file"
   writeFile ".styx/shell.nix" $ unlines $
     ["{ nixpkgs ? import <nixpkgs> {}, compiler ? " ++ (show cfgDefCompil) ++ " }:"]
     ++ case cfgNixpkgsVersion of
