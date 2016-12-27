@@ -1,1 +1,3 @@
-external-repos: {}
+local-packages:
+  styx:
+    location: .
