@@ -150,7 +150,7 @@ configure = do
        ,"     getHaskellDeps = ps: path:"
        ,"        let f = import path;"
        ,"            gatherDeps = {buildDepends ? [], libraryHaskellDepends ? [], executableHaskellDepends ? [], ...}:"
-       ,"               libraryHaskellDepends ++ executableHaskellDepends;"
+       ,"               buildDepends ++ libraryHaskellDepends ++ executableHaskellDepends;"
        ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
        ,"        in x;"
        ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
