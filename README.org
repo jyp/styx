@@ -84,4 +84,5 @@ Styx provides a couple of convenience commands:
 $ styx build # runs cabal install in the sandbox
 $ styx repl # runs cabal repl in the sandbox
 $ styx exec <cmd> # runs cabal exec in the sandbox
+$ styx cabal <cmd> # runs cabal <cmd> in the sandbox
 #+END_SRC

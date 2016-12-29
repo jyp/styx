@@ -29,13 +29,17 @@ withInfo opts desc = info (helper <*> opts) $ progDesc desc
 parseExec :: Parser Command
 parseExec = (\rest -> Cabal (["exec","--"] ++ rest)) <$> some (argument str (metavar "COMMAND"))
 
+parseCabal :: Parser Command
+parseCabal = Cabal <$> some (argument str (metavar "COMMAND"))
+
 parseCommand :: Parser Command
 parseCommand = subparser $
     command "configure" (pure Configure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
     command "clean"     (pure Clean `withInfo` "Remove all styx working files") <>
     command "build"     (pure (Cabal ["install"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
     command "repl"      (pure (Cabal ["repl"]) `withInfo` "Start a repl in the nix-shell'ed cabal sandbox") <>
-    command "exec"      (parseExec `withInfo` "Exec a command in the nix-shell'ed cabal sandbox")
+    command "exec"      (parseExec `withInfo` "Exec a command in the nix-shell'ed cabal sandbox") <>
+    command "cabal"     (parseCabal `withInfo` "Execute an arbitrary cabal command in the nix-shell'ed cabal sandbox")
 
 main :: IO ()
 main = run =<< execParser (parseCommand `withInfo` "Wrapper around nix-shell, cabal2nix and cabal")
