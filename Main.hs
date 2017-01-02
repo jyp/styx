@@ -113,7 +113,7 @@ cmd x = do
   callCommand x
 
 log :: String -> IO ()
-log msg = putStrLn $ "STYX: " ++ msg
+log msg = putStrLn $ "Styx: " ++ msg
 
 configure :: IO ()
 configure = do
@@ -168,3 +168,4 @@ configure = do
        ,"  buildInputs = [ ghc " ++ intercalate " " (map parens cfgNixOtherDeps) ++ "];" -- todo system build inputs here
        ,"  shellHook = \"eval $(egrep ^export ${ghc}/bin/ghc)\";"
        ,"}"]
+  run (Cabal ["configure"])
