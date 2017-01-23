@@ -45,7 +45,7 @@ main :: IO ()
 main = run =<< execParser (parseCommand `withInfo` "Wrapper around nix-shell, cabal2nix and cabal")
 
 --------------------------------
--- Configuration 
+-- Configuration
 data Repo = Repo {repoLocation :: String,
                   repoRevision :: Maybe String}
 data Config =
@@ -56,7 +56,7 @@ data Config =
          -- ^ haskell deps to fetch directly from nix (usually empty for a cabal project, as the cabal file will specifiy deps)
          ,cfgNixOtherDeps :: [String]
          -- ^ Other nix dependencies (non haskell packages)
-         ,cfgDefCompil :: String 
+         ,cfgDefCompil :: String
          }
 
 data ShellConfig = ShellConfig {}
@@ -153,8 +153,8 @@ configure = do
     ++ ["      };};"
        ,"     getHaskellDeps = ps: path:"
        ,"        let f = import path;"
-       ,"            gatherDeps = {buildDepends ? [], libraryHaskellDepends ? [], executableHaskellDepends ? [], ...}:"
-       ,"               libraryHaskellDepends ++ executableHaskellDepends;"
+       ,"            gatherDeps = {buildDepends ? [], libraryHaskellDepends ? [], executableHaskellDepends ? [], libraryToolDepends ? [],  ...}:"
+       ,"               buildDepends ++ libraryHaskellDepends ++ executableHaskellDepends ++ libraryToolDepends;"
        ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
        ,"        in x;"
        ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
