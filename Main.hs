@@ -47,7 +47,8 @@ main = run =<< execParser (parseCommand `withInfo` "Wrapper around nix-shell, ca
 --------------------------------
 -- Configuration
 data Repo = Repo {repoLocation :: String,
-                  repoRevision :: Maybe String}
+                  repoRevision :: Maybe String,
+                  repoCabal2NixFlags :: Maybe String}
 data Config =
   Config {cfgNixpkgsVersion :: Maybe GitVersion
          ,cfgLocalPackages :: Map String Repo -- list of local packages (must be on the local filesystem)
@@ -74,12 +75,15 @@ instance FromJSON Config where
 instance FromJSON Repo where
   parseJSON (Object v) = Repo  <$>
                          v .: "location"  <*> -- location of the repo (in cabal2nix format)
-                         v .:? "revision"
+                         v .:? "revision" <*>
+                         v .:? "cabal2nix"
+
   parseJSON invalid = typeMismatch "Location" invalid
 
-data GitVersion = GitVersion {gitCommit :: String, gitSha :: String}
+data GitVersion = GitVersion {gitOwner :: String, gitCommit :: String, gitSha :: String}
 instance FromJSON GitVersion where
   parseJSON (Object v) = GitVersion <$>
+                         v .:? "owner" .!= "NixOS" <*>
                          v .: "commit" <*>
                          v .: "sha256"   -- find here: curl -LO https://nixos.org/channels/nixpkgs-unstable
   parseJSON invalid = typeMismatch "Git version" invalid
@@ -92,6 +96,7 @@ locToNix :: String -> Repo -> IO ()
 locToNix p (Repo {..}) = do
   cmd $ intercalate " " ["cabal2nix",
                           maybe "" ("--revision=" ++) repoRevision,
+                          maybe "" id repoCabal2NixFlags,
                           repoLocation, "> .styx/" ++ p ++ ".nix"]
 
 canonicalizeLocalPath :: Repo -> IO Repo
@@ -137,7 +142,7 @@ configure = do
       Nothing -> ["let nixpkgs' = nixpkgs;"]
       Just (GitVersion {..}) ->
         ["let nixpkgs_source = nixpkgs.fetchFromGitHub {"
-        ,"      owner = \"NixOS\";"
+        ,"      owner = " ++ show gitOwner ++ ";"
         ,"      repo = \"nixpkgs\";"
         ,"      rev = " ++ show gitCommit ++ ";"
         ,"      sha256 = " ++ show gitSha ++ ";"
