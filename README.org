@@ -58,6 +58,7 @@ non-haskell-deps:
 nixpkgs:
   commit: 8ef3eaeb4e531929ec29a880cb4c67f790e5eb70
   sha256: 4d2fae900d2d99ea294f4f412289af77152ac21d7b2e9ff23581ef11ea00831f
+  # or like this: url: https://github.com/NixOS/nixpkgs-channels/archive/nixos-14.12.tar.gz
 
 # Optionally, one can ask for a specific version of ghc known by nixpkgs
 default-compiler: ghc801

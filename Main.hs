@@ -50,7 +50,7 @@ data Repo = Repo {repoLocation :: String,
                   repoRevision :: Maybe String,
                   repoCabal2NixFlags :: Maybe String}
 data Config =
-  Config {cfgNixpkgsVersion :: Maybe GitVersion
+  Config {cfgNixpkgsVersion :: Maybe SourceVersion
          ,cfgLocalPackages :: Map String Repo -- list of local packages (must be on the local filesystem)
          ,cfgExternalSourceDeps :: Map String Repo -- mapping of package names to locations as understood by cabal2nix
          ,cfgNixHsDeps :: [String]
@@ -80,12 +80,14 @@ instance FromJSON Repo where
 
   parseJSON invalid = typeMismatch "Location" invalid
 
-data GitVersion = GitVersion {gitOwner :: String, gitCommit :: String, gitSha :: String}
-instance FromJSON GitVersion where
-  parseJSON (Object v) = GitVersion <$>
+data SourceVersion = GitVersion {gitOwner :: String, gitCommit :: String, gitSha :: String}
+                   | TarballVersion {tarballURL :: String}
+instance FromJSON SourceVersion where
+  parseJSON (Object v) = (GitVersion <$>
                          v .:? "owner" .!= "NixOS" <*>
                          v .: "commit" <*>
-                         v .: "sha256"   -- find here: curl -LO https://nixos.org/channels/nixpkgs-unstable
+                         v .: "sha256")
+                       <|> (TarballVersion <$> v .: "url")
   parseJSON invalid = typeMismatch "Git version" invalid
 
 
@@ -140,15 +142,16 @@ configure = do
     ["{ nixpkgs ? import <nixpkgs> {}, compiler ? " ++ (show cfgDefCompil) ++ " }:"]
     ++ case cfgNixpkgsVersion of
       Nothing -> ["let nixpkgs' = nixpkgs;"]
-      Just (GitVersion {..}) ->
-        ["let nixpkgs_source = nixpkgs.fetchFromGitHub {"
-        ,"      owner = " ++ show gitOwner ++ ";"
-        ,"      repo = \"nixpkgs\";"
-        ,"      rev = " ++ show gitCommit ++ ";"
-        ,"      sha256 = " ++ show gitSha ++ ";"
-        ,"    };"
-        ,"    nixpkgs' = (import nixpkgs_source){};"
-        ]
+      Just source -> ["let nixpkgs_source ="] ++ case source of
+        GitVersion {..} -> ["  nixpkgs.fetchFromGitHub {"
+                           ,"      owner = " ++ show gitOwner ++ ";"
+                           ,"      repo = \"nixpkgs\";"
+                           ,"      rev = " ++ show gitCommit ++ ";"
+                           ,"      sha256 = " ++ show gitSha ++ ";"
+                           ,"    };"
+                           ]
+        TarballVersion {..} -> ["url = " ++ show tarballURL ++ ";"]
+       ++ ["  nixpkgs' = (import nixpkgs_source){};"]
     ++ ["in with nixpkgs'.pkgs;"
        ,"let hp = haskell.packages.${compiler}.override{"
        ,"    overrides = self: super: {"
