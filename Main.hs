@@ -29,6 +29,9 @@ withInfo opts desc = info (helper <*> opts) $ progDesc desc
 parseExec :: Parser Command
 parseExec = (\rest -> Cabal (["exec","--"] ++ rest)) <$> some (argument str (metavar "COMMAND"))
 
+parseRepl :: Parser Command
+parseRepl = (\target -> Cabal (["repl"] ++ maybe [] (:[]) target)) <$> optional (argument str (metavar "TARGET"))
+
 parseCabal :: Parser Command
 parseCabal = Cabal <$> some (argument str (metavar "COMMAND"))
 
@@ -36,8 +39,8 @@ parseCommand :: Parser Command
 parseCommand = subparser $
     command "configure" (pure Configure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
     command "clean"     (pure Clean `withInfo` "Remove all styx working files") <>
-    command "build"     (pure (Cabal ["install"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
-    command "repl"      (pure (Cabal ["repl"]) `withInfo` "Start a repl in the nix-shell'ed cabal sandbox") <>
+    command "build"     (pure (Cabal ["install","--package-db=clear"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
+    command "repl"      (parseRepl `withInfo` "Start a repl in the nix-shell'ed cabal sandbox") <>
     command "exec"      (parseExec `withInfo` "Exec a command in the nix-shell'ed cabal sandbox") <>
     command "cabal"     (parseCabal `withInfo` "Execute an arbitrary cabal command in the nix-shell'ed cabal sandbox")
 
@@ -110,7 +113,7 @@ run :: Command -> IO ()
 run c = case c of
   Configure -> configure
   Cabal args -> do
-    _ <- cmd ("nix-shell .styx/shell.nix --run " ++ show (intercalate " " ("cabal":args)))
+    _ <- cmd ("nix-shell .styx/shell.nix --pure --run " ++ show (intercalate " " ("cabal":args)))
     return ()
   Clean -> cmd "rm -rf .styx"
 
@@ -167,7 +170,7 @@ configure = do
        ,"        in x;"
        ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
        , "[" ++ intercalate " " (M.keys cfgLocalPackages) ++ "]" -- Here we remove the packages that we provide locally in the sandbox
-       , "(["
+       , "([ cabal-install "
        , intercalate " " (M.keys cfgExternalSourceDeps ++ cfgNixHsDeps)
        ,"  ] " ++ concat [" ++ getHaskellDeps ps ./" ++ n ++ ".nix"| n <- M.keys cfgLocalPackages] ++ "));"
        ,"in"
