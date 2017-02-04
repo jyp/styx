@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -5,6 +6,9 @@
 module Main where
 import System.Process
 import Control.Monad.Identity
+#if MIN_VERSION_optparse_applicative(0,13,0)
+import Data.Monoid ((<>))
+#endif
 import Data.Yaml hiding (Parser)
 import Data.Yaml.Config
 import qualified Data.Map as M
