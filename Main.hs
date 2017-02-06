@@ -168,8 +168,8 @@ configure = do
     ++ ["      };};"
        ,"     getHaskellDeps = ps: path:"
        ,"        let f = import path;"
-       ,"            gatherDeps = {buildDepends ? [], libraryHaskellDepends ? [], executableHaskellDepends ? [], libraryToolDepends ? [],  ...}:"
-       ,"               buildDepends ++ libraryHaskellDepends ++ executableHaskellDepends ++ libraryToolDepends;"
+       ,"            gatherDeps = { " ++ concat [d ++ " ? [], " | d <- depKinds] ++ "...}:"
+       ,"               " ++ intercalate " ++ " depKinds ++ ";"
        ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
        ,"        in x;"
        ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
@@ -184,3 +184,6 @@ configure = do
        ,"  shellHook = \"eval $(egrep ^export ${ghc}/bin/ghc)\";"
        ,"}"]
   run (Cabal ["configure"])
+
+depKinds :: [String]
+depKinds = ["buildDepends", "libraryHaskellDepends", "executableHaskellDepends", "libraryToolDepends", "executableToolDepends"]
