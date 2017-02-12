@@ -183,7 +183,7 @@ configure = do
        ,"  buildInputs = [ ghc " ++ intercalate " " (map parens cfgNixOtherDeps) ++ "];" -- todo system build inputs here
        ,"  shellHook = \"eval $(egrep ^export ${ghc}/bin/ghc)\";"
        ,"}"]
-  run (Cabal ["configure"])
+  -- run (Cabal ["configure"]) -- this will fail unless the sandbox dependencies are built first.
 
 depKinds :: [String]
 depKinds = ["buildDepends", "libraryHaskellDepends", "executableHaskellDepends", "libraryToolDepends", "executableToolDepends"]
