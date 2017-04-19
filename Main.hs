@@ -25,7 +25,7 @@ parens x = "(" ++ x ++ ")"
 -----------------------------------------
 -- OPTIONS
 
-data Command = Configure | Cabal [String] | Clean
+data Command = Configure | Cabal [String] | Clean | Command :<> Command
 
 withInfo :: Parser a -> String -> ParserInfo a
 withInfo opts desc = info (helper <*> opts) $ progDesc desc
@@ -43,7 +43,8 @@ parseCommand :: Parser Command
 parseCommand = subparser $
     command "configure" (pure Configure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
     command "clean"     (pure Clean `withInfo` "Remove all styx working files") <>
-    command "build"     (pure (Cabal ["install","--avoid-reinstalls"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
+    command "build"     (pure (Cabal ["install","--only-dependencies", "--force-reinstalls"]
+                              :<> Cabal ["install","--avoid-reinstalls"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
     command "repl"      (parseRepl `withInfo` "Start a repl in the nix-shell'ed cabal sandbox") <>
     command "exec"      (parseExec `withInfo` "Exec a command in the nix-shell'ed cabal sandbox") <>
     command "cabal"     (parseCabal `withInfo` "Execute an arbitrary cabal command in the nix-shell'ed cabal sandbox")
@@ -115,6 +116,7 @@ canonicalizeLocalPath (Repo {repoLocation = d,..}) = do
 
 run :: Command -> IO ()
 run c = case c of
+  a :<> b -> run a >> run b
   Configure -> configure
   Cabal args -> do
     _ <- cmd ("nix-shell .styx/shell.nix --pure --run " ++ show (intercalate " " ("cabal":args)))
