@@ -159,7 +159,7 @@ configure = do
                            ,"      sha256 = " ++ show gitSha ++ ";"
                            ,"    };"
                            ]
-        TarballVersion {..} -> ["url = " ++ show tarballURL ++ ";"]
+        TarballVersion {..} -> ["fetchTarball " ++ show tarballURL ++ ";"]
        ++ ["  nixpkgs' = (import nixpkgs_source){};"]
     ++ ["in with nixpkgs'.pkgs;"
        ,"let hp = haskell.packages.${compiler}.override{"
