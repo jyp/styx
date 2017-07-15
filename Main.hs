@@ -25,10 +25,13 @@ parens x = "(" ++ x ++ ")"
 -----------------------------------------
 -- OPTIONS
 
-data Command = Configure | Cabal [String] | Clean | Command :<> Command
+data Command = Configure { enableTests :: Bool } | Cabal [String] | Clean | Command :<> Command
 
 withInfo :: Parser a -> String -> ParserInfo a
 withInfo opts desc = info (helper <*> opts) $ progDesc desc
+
+parseConfigure :: Parser Command
+parseConfigure = Configure <$> switch (long "enable-tests")
 
 parseExec :: Parser Command
 parseExec = (\rest -> Cabal (["exec","--"] ++ rest)) <$> some (argument str (metavar "COMMAND"))
@@ -41,7 +44,7 @@ parseCabal = Cabal <$> some (argument str (metavar "COMMAND"))
 
 parseCommand :: Parser Command
 parseCommand = subparser $
-    command "configure" (pure Configure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
+    command "configure" (parseConfigure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
     command "clean"     (pure Clean `withInfo` "Remove all styx working files") <>
     command "build"     (pure (Cabal ["install","--only-dependencies", "--force-reinstalls"]
                               :<> Cabal ["install","--avoid-reinstalls"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
@@ -117,7 +120,7 @@ canonicalizeLocalPath (Repo {repoLocation = d,..}) = do
 run :: Command -> IO ()
 run c = case c of
   a :<> b -> run a >> run b
-  Configure -> configure
+  Configure t -> configure t
   Cabal args -> do
     _ <- cmd ("nix-shell .styx/shell.nix --pure --run " ++ show (intercalate " " ("cabal":args)))
     return ()
@@ -131,8 +134,8 @@ cmd x = do
 log :: String -> IO ()
 log msg = putStrLn $ "Styx: " ++ msg
 
-configure :: IO ()
-configure = do
+configure :: Bool -> IO ()
+configure enableTests = do
   Config{..} <- loadYamlSettings ["styx.yaml"] [] ignoreEnv
   createDirectoryIfMissing False ".styx"
 
@@ -170,8 +173,8 @@ configure = do
     ++ ["      };};"
        ,"     getHaskellDeps = ps: path:"
        ,"        let f = import path;"
-       ,"            gatherDeps = { " ++ concat [d ++ " ? [], " | d <- depKinds] ++ "...}:"
-       ,"               " ++ intercalate " ++ " depKinds ++ ";"
+       ,"            gatherDeps = { " ++ concat [d ++ " ? [], " | d <- (depKinds enableTests)] ++ "...}:"
+       ,"               " ++ intercalate " ++ " (depKinds enableTests) ++ ";"
        ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
        ,"        in x;"
        ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
@@ -188,7 +191,12 @@ configure = do
        ," eval $(egrep ^export ${ghc}/bin/ghc)"
        ,"'';"
        ,"}"]
-  -- run (Cabal ["configure"]) -- this will fail unless the sandbox dependencies are built first.
+  cabalConfigure enableTests
 
-depKinds :: [String]
-depKinds = ["buildDepends", "libraryHaskellDepends", "executableHaskellDepends", "libraryToolDepends", "executableToolDepends"]
+cabalConfigure enableTests = do
+  let opts = if enableTests then ["--enable-tests"] else []
+  -- this will fail unless the sandbox dependencies are built first
+  run (Cabal $ ["configure"] ++ opts)
+
+depKinds :: Bool -> [String]
+depKinds t = ["buildDepends", "libraryHaskellDepends", "executableHaskellDepends", "libraryToolDepends", "executableToolDepends"] ++ if t then ["testHaskellDepends"] else []
