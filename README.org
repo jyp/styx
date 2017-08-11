@@ -40,6 +40,7 @@ local-packages:
 source-deps:
   mtl:
     location: https://github.com/mrawesome/awsm-patched-version-of-mtl.git
+    # revision: cc9a31305421f6bc72cc1f107f1270bd178c78a1 # optional
 
 # If you want you can add other haskell nix packages to depend on.
 # Normally this is not necessary, because nix will track the dependencies on its own.
