@@ -77,7 +77,7 @@ instance FromJSON Config where
                          v .:? "source-deps" .!= M.empty  <*>
                          v .:? "nix-deps" .!= []  <*>
                          v .:? "non-haskell-deps" .!= [] <*>
-                         v .:? "default-compiler" .!= "ghc801"
+                         v .:? "default-compiler" .!= "default"
   parseJSON invalid = typeMismatch "Config" invalid
 
 instance FromJSON Repo where
@@ -162,7 +162,10 @@ configure = do
         TarballVersion {..} -> ["fetchTarball " ++ show tarballURL ++ ";"]
        ++ ["  nixpkgs' = (import nixpkgs_source){};"]
     ++ ["in with nixpkgs'.pkgs;"
-       ,"let hp = haskell.packages.${compiler}.override{"
+       ,"let haskellPackages' = if compiler == \"default\""
+       ,"                         then haskellPackages"
+       ,"                         else haskell.packages.${compiler};"
+       ,"    hp = haskellPackages'.override{"
        ,"    overrides = self: super: {"
        ]
     ++ ["      " ++ n ++ " = self.callPackage ./" ++ n ++ ".nix {};"
@@ -174,7 +177,7 @@ configure = do
        ,"               " ++ intercalate " ++ " depKinds ++ ";"
        ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
        ,"        in x;"
-       ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
+       ,"    ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
        , "[" ++ intercalate " " (M.keys cfgLocalPackages) ++ "]" -- Here we remove the packages that we provide locally in the sandbox
        , "([ cabal-install "
        , intercalate " " (M.keys cfgExternalSourceDeps ++ cfgNixHsDeps)
