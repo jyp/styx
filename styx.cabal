@@ -3,7 +3,7 @@ version:        1.3
 category:       Development
 synopsis:       A generator of nix files
 description:
-  Soon to appear.
+  Styx is a convenient wrapper around cabal2nix, nix-shell and cabal sandbox.
 license:        GPL
 license-file:   LICENSE
 author:         Jean-Philippe Bernardy
