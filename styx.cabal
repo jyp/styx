@@ -27,5 +27,6 @@ executable styx
 
   main-is: Main.hs
 
-
- 
+source-repository head
+  type:     git
+  location: https://github.com/jyp/styx
