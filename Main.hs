@@ -65,7 +65,7 @@ data Config =
          -- ^ haskell deps to fetch directly from nix (usually empty for a cabal project, as the cabal file will specifiy deps)
          ,cfgNixOtherDeps :: [String]
          -- ^ Other nix dependencies (non haskell packages)
-         ,cfgDefCompil :: String
+         ,cfgDefCompil :: Maybe String
          }
 
 data ShellConfig = ShellConfig {}
@@ -77,7 +77,7 @@ instance FromJSON Config where
                          v .:? "source-deps" .!= M.empty  <*>
                          v .:? "nix-deps" .!= []  <*>
                          v .:? "non-haskell-deps" .!= [] <*>
-                         v .:? "default-compiler" .!= "ghc801"
+                         v .:? "default-compiler"
   parseJSON invalid = typeMismatch "Config" invalid
 
 instance FromJSON Repo where
@@ -148,7 +148,9 @@ configure = do
 
   log "Creating shell.nix file"
   writeFile ".styx/shell.nix" $ unlines $
-    ["{ nixpkgs ? import <nixpkgs> {}, compiler ? " ++ (show cfgDefCompil) ++ " }:"]
+    ["{ nixpkgs ? import <nixpkgs> {}"
+    , maybe "" (", compiler ? " ++) cfgDefCompil
+    ," }:"]
     ++ case cfgNixpkgsVersion of
       Nothing -> ["let nixpkgs' = nixpkgs;"]
       Just source -> ["let nixpkgs_source ="] ++ case source of
@@ -162,7 +164,7 @@ configure = do
         TarballVersion {..} -> ["fetchTarball " ++ show tarballURL ++ ";"]
        ++ ["  nixpkgs' = (import nixpkgs_source){};"]
     ++ ["in with nixpkgs'.pkgs;"
-       ,"let hp = haskell.packages.${compiler}.override{"
+       ,"let hp = " ++ maybe "haskellPackages" (const "haskell.packages.${compiler}") cfgDefCompil ++ ".override{"
        ,"    overrides = self: super: {"
        ]
     ++ ["      " ++ n ++ " = self.callPackage ./" ++ n ++ ".nix {};"
@@ -192,3 +194,7 @@ configure = do
 
 depKinds :: [String]
 depKinds = ["buildDepends", "libraryHaskellDepends", "executableHaskellDepends", "libraryToolDepends", "executableToolDepends"]
+
+-- Local Variables:
+-- dante-repl-command-line: ("nix-shell" "--run" "cabal repl")
+-- End:
