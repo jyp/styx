@@ -149,7 +149,7 @@ configure = do
   log "Creating shell.nix file"
   writeFile ".styx/shell.nix" $ unlines $
     ["{ nixpkgs ? import <nixpkgs> {}"
-    , maybe "" (", compiler ? " ++) cfgDefCompil
+    , maybe "" ((", compiler ? " ++) . show) cfgDefCompil
     ," }:"]
     ++ case cfgNixpkgsVersion of
       Nothing -> ["let nixpkgs' = nixpkgs;"]
