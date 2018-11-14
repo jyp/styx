@@ -174,7 +174,10 @@ configure = do
        ,"        let f = import path;"
        ,"            gatherDeps = { " ++ concat [d ++ " ? [], " | d <- depKinds] ++ "...}:"
        ,"               " ++ intercalate " ++ " depKinds ++ ";"
-       ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f) ps // {stdenv = stdenv; mkDerivation = gatherDeps;});"
+       ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f)"
+       ,"                                               (ps // ",
+        "                                                nixpkgs'.pkgs) # can also depend on non-haskell packages",
+        "                   // {stdenv = stdenv; mkDerivation = gatherDeps;});"
        ,"        in x;"
        ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
        , "[" ++ intercalate " " (M.keys cfgLocalPackages) ++ "]" -- Here we remove the packages that we provide locally in the sandbox
