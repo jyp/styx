@@ -1,6 +1,6 @@
-{ nixpkgs ? import <nixpkgs> {}, compiler ? "ghc801" }: 
+{ nixpkgs ? import <nixpkgs> {} }: 
 with (import <nixpkgs> {}).pkgs;
-let hp = haskell.packages.${compiler}.override{
+let hp = haskell.haskellPackages.override{
     overrides = self: super: {
       };};
     locpkg = hp.callPackage ./default.nix { }; 
