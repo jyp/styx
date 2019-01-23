@@ -4,3 +4,6 @@
 dist/
 /.styx
 cabal.sandbox.config
+/cabal.project.local
+/.ghc.environment.x86_64-linux-8.4.4
+/dist-newstyle

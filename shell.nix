@@ -1,7 +1,7 @@
-{ nixpkgs ? import <nixpkgs> {} }: 
-with (import <nixpkgs> {}).pkgs;
-let hp = haskell.haskellPackages.override{
-    overrides = self: super: {
-      };};
-    locpkg = hp.callPackage ./default.nix { }; 
+{ bootstrap ? import <nixpkgs> {} }:
+
+let pkgsSource = fetchTarball "https://github.com/NixOS/nixpkgs-channels/archive/nixos-18.09.tar.gz";
+    pkgs = import pkgsSource {};
+    hp = pkgs.haskellPackages;
+    locpkg = hp.callPackage ./default.nix {};
 in locpkg.env

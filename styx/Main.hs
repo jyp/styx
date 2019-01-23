@@ -34,7 +34,7 @@ parseExec :: Parser Command
 parseExec = (\rest -> Cabal (["exec","--"] ++ rest)) <$> some (argument str (metavar "COMMAND"))
 
 parseRepl :: Parser Command
-parseRepl = (\target -> Cabal (["repl"] ++ maybe [] (:[]) target)) <$> optional (argument str (metavar "TARGET"))
+parseRepl = (\target -> Cabal (["new-repl"] ++ maybe [] (:[]) target)) <$> optional (argument str (metavar "TARGET"))
 
 parseCabal :: Parser Command
 parseCabal = Cabal <$> some (argument str (metavar "COMMAND"))
@@ -43,8 +43,7 @@ parseCommand :: Parser Command
 parseCommand = subparser $
     command "configure" (pure Configure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
     command "clean"     (pure Clean `withInfo` "Remove all styx working files") <>
-    command "build"     (pure (Cabal ["install","--only-dependencies", "--force-reinstalls"]
-                              :<> Cabal ["install","--avoid-reinstalls"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
+    command "build"     (pure (Cabal ["new-build","all"]) `withInfo` "(Attempt to) build and install all the packages in the sandbox") <>
     command "repl"      (parseRepl `withInfo` "Start a repl in the nix-shell'ed cabal sandbox") <>
     command "exec"      (parseExec `withInfo` "Exec a command in the nix-shell'ed cabal sandbox") <>
     command "cabal"     (parseCabal `withInfo` "Execute an arbitrary cabal command in the nix-shell'ed cabal sandbox")
@@ -140,11 +139,8 @@ configure = do
   forM_ (M.assocs cfgLocalPackages) $ \(p,r) -> locToNix p =<< (canonicalizeLocalPath r)
   forM_ (M.assocs cfgExternalSourceDeps) (uncurry locToNix)
 
-  log "Initializing a sandbox in .styx"
-  cmd "cabal sandbox init --sandbox .styx"
-  log "Adding local packages as sources to the sandbox"
-  forM_ (M.assocs cfgLocalPackages) $ \(_,Repo {..}) -> do
-    cmd ("cabal sandbox add-source " ++ repoLocation)
+  log "Initializing cabal.project"
+  writeFile "cabal.project" $ unlines $ ("packages:" : ["  " ++ repoLocation | (_,Repo {..}) <- M.assocs cfgLocalPackages ] )
 
   log "Creating shell.nix file"
   writeFile ".styx/shell.nix" $ unlines $
@@ -193,11 +189,11 @@ configure = do
        ," eval $(egrep ^export ${ghc}/bin/ghc)"
        ,"'';"
        ,"}"]
-  -- run (Cabal ["configure"]) -- this will fail unless the sandbox dependencies are built first.
+  run (Cabal ["new-configure"]) -- this will fail unless the sandbox dependencies are built first.
 
 depKinds :: [String]
 depKinds = ["buildDepends", "libraryHaskellDepends", "executableHaskellDepends", "libraryToolDepends", "executableToolDepends"]
 
 -- Local Variables:
--- dante-repl-command-line: ("nix-shell" "--run" "cabal repl")
+-- dante-methods: (impure-nix)
 -- End:
