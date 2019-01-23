@@ -3,7 +3,7 @@
 "Styx: there is no looking back."
 
 Styx is a convenient wrapper around ~cabal2nix~, ~nix-shell~ and
-~cabal sandbox~.
+~cabal new-<command>~.
 
 ** Installation
 
@@ -28,23 +28,23 @@ In a directory of your choice, create a ~styx.yaml~ file like so:
 
 #+BEGIN_EXAMPLE
 
-# List first the packages that you edit locally and want compiled "all the time", by cabal:
+# List the packages that you edit locally and want compiled "all the time", by cabal:
 local-packages:
   my-main-package: # package name
-    location: .    # location on your disk
+    location: main # location on your disk (this CANNOT be "." because it is not supported by cabal new-build)
   my-local-dep:    # package name
     location: dep  # location on your disk
 
-# Optional: list patched or cutting edge packages that you depend on.
+# Optionally, list patched or cutting edge packages that you depend on.
 # These will be compiled only once, by nix.
 source-deps:
   mtl:
     location: https://github.com/mrawesome/awsm-patched-version-of-mtl.git
     # revision: cc9a31305421f6bc72cc1f107f1270bd178c78a1 # optional
 
-# If you want you can add other haskell nix packages to depend on.
+# Optionally, add other haskell nix packages to depend on.
 # Normally this is not necessary, because nix will track the dependencies on its own.
-# Thus this section is mostly useful for throw-away projects which do not have a cabal file.
+# Thus this section is mostly useful for throw-away projects which do not have a well-formed cabal file.
 nix-deps:
     - criterion
     - gasp
@@ -61,7 +61,7 @@ nixpkgs:
   sha256: 4d2fae900d2d99ea294f4f412289af77152ac21d7b2e9ff23581ef11ea00831f
   # or like this: url: https://github.com/NixOS/nixpkgs-channels/archive/nixos-14.12.tar.gz
 
-# Optionally, one can ask for a specific version of ghc known by nixpkgs
+# Optionally, one can ask for a specific version of ghc, as known by nixpkgs
 default-compiler: ghc801
 #+END_EXAMPLE
 
@@ -72,7 +72,7 @@ styx configure
 #+END_SRC
 
 will create one nix file for each external package, a suitable
-~shell.nix~, and a sandbox with sources for every local-package.
+~shell.nix~, and a ~cabal.project~ file.
 
 ** Use
 
@@ -83,8 +83,8 @@ nix-shell .styx/shell.nix --run "cabal ..."
 
 Styx provides a couple of convenience commands:
 #+BEGIN_SRC shell
-$ styx build # runs cabal install in the sandbox
-$ styx repl # runs cabal repl in the sandbox
+$ styx build # runs cabal new-build in the shell
+$ styx repl # runs cabal new-repl in the shell
 $ styx exec <cmd> # runs cabal exec in the sandbox
 $ styx cabal <cmd> # runs cabal <cmd> in the sandbox
 #+END_SRC
