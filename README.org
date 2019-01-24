@@ -31,9 +31,9 @@ In a directory of your choice, create a ~styx.yaml~ file like so:
 # List the packages that you edit locally and want compiled "all the time", by cabal:
 local-packages:
   my-main-package: # package name
-    location: main # location on your disk (this CANNOT be "." because it is not supported by cabal new-build)
+    location: main # location on your disk (directory)
   my-local-dep:    # package name
-    location: dep  # location on your disk
+    location: dep  # location on your disk (directory)
 
 # Optionally, list patched or cutting edge packages that you depend on.
 # These will be compiled only once, by nix.

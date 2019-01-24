@@ -135,12 +135,14 @@ configure = do
   Config{..} <- loadYamlSettings ["styx.yaml"] [] ignoreEnv
   createDirectoryIfMissing False ".styx"
 
+  log "Initializing cabal.project"
+  writeFile "cabal.project" $ unlines $ ("packages:" : ["  " ++ repoLocation ++ "/" ++ projectName ++ ".cabal"
+                                                       | (projectName,Repo {..}) <- M.assocs cfgLocalPackages ] )
+
   log "Running cabal2nix for all local and external packages"
   forM_ (M.assocs cfgLocalPackages) $ \(p,r) -> locToNix p =<< (canonicalizeLocalPath r)
   forM_ (M.assocs cfgExternalSourceDeps) (uncurry locToNix)
 
-  log "Initializing cabal.project"
-  writeFile "cabal.project" $ unlines $ ("packages:" : ["  " ++ repoLocation | (_,Repo {..}) <- M.assocs cfgLocalPackages ] )
 
   log "Creating shell.nix file"
   writeFile ".styx/shell.nix" $ unlines $
