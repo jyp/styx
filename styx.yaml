@@ -3,4 +3,4 @@ local-packages:
     location: styx
 
 nixpkgs:
-  url: https://github.com/NixOS/nixpkgs-channels/archive/nixos-18.09.tar.gz
+  url: https://github.com/NixOS/nixpkgs/archive/nixos-21.05.tar.gz

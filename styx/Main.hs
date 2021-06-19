@@ -31,10 +31,10 @@ withInfo :: Parser a -> String -> ParserInfo a
 withInfo opts desc = info (helper <*> opts) $ progDesc desc
 
 parseExec :: Parser Command
-parseExec = (\rest -> Cabal (["new-exec","--"] ++ rest)) <$> some (argument str (metavar "COMMAND"))
+parseExec = (\rest -> Cabal (["v2-exec","--"] ++ rest)) <$> some (argument str (metavar "COMMAND"))
 
 parseRepl :: Parser Command
-parseRepl = (\target -> Cabal (["new-repl"] ++ maybe [] (:[]) target)) <$> optional (argument str (metavar "TARGET"))
+parseRepl = (\target -> Cabal (["v2-repl"] ++ maybe [] (:[]) target)) <$> optional (argument str (metavar "TARGET"))
 
 parseCabal :: Parser Command
 parseCabal = Cabal <$> some (argument str (metavar "COMMAND"))
@@ -43,7 +43,7 @@ parseCommand :: Parser Command
 parseCommand = subparser $
     command "configure" (pure Configure `withInfo` "Re-configure the project on the basis of the styx.yaml file") <>
     command "clean"     (pure Clean `withInfo` "Remove all styx working files") <>
-    command "build"     (pure (Cabal ["new-build","all"]) `withInfo` "build all the packages") <>
+    command "build"     (pure (Cabal ["v2-build","all"]) `withInfo` "build all the packages") <>
     command "repl"      (parseRepl `withInfo` "Start a repl in the nix-shell'ed 1st component of the cabal project") <>
     command "exec"      (parseExec `withInfo` "Exec a command in the nix-shell'ed cabal project") <>
     command "cabal"     (parseCabal `withInfo` "Execute an arbitrary cabal command in the nix-shell")
@@ -175,9 +175,9 @@ configure = do
        ,"            x = f (builtins.intersectAttrs (builtins.functionArgs f)"
        ,"                                               (ps // ",
         "                                                nixpkgs'.pkgs) # can also depend on non-haskell packages",
-        "                   // {stdenv = stdenv; mkDerivation = gatherDeps;});"
+        "                   // {lib = lib; mkDerivation = gatherDeps;});"
        ,"        in x;"
-       ,"ghc = hp.ghcWithPackages (ps: with ps; stdenv.lib.lists.subtractLists"
+       ,"ghc = hp.ghcWithPackages (ps: with ps; lib.lists.subtractLists"
        , "[" ++ intercalate " " (M.keys cfgLocalPackages) ++ "]" -- Here we remove the packages that we provide locally in the sandbox
        , "([ cabal-install "
        , intercalate " " (M.keys cfgExternalSourceDeps ++ cfgNixHsDeps)
@@ -191,7 +191,7 @@ configure = do
        ," eval $(egrep ^export ${ghc}/bin/ghc)"
        ,"'';"
        ,"}"]
-  run (Cabal ["new-configure"]) -- this will fail unless the sandbox dependencies are built first.
+  run (Cabal ["v2-configure"]) -- this will fail unless the sandbox dependencies are built first.
 
 depKinds :: [String]
 depKinds = ["buildDepends", "libraryHaskellDepends", "executableHaskellDepends", "libraryToolDepends", "executableToolDepends"]
