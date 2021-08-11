@@ -185,7 +185,7 @@ configure = do
        ,"in"
        ,"pkgs.stdenv.mkDerivation {"
        ,"  name = \"my-haskell-env-0\";"
-       ,"  buildInputs = [ ghc " ++ intercalate " " (map parens cfgNixOtherDeps) ++ "];" -- todo system build inputs here
+       ,"  buildInputs = [ glibcLocales ghc " ++ intercalate " " (map parens cfgNixOtherDeps) ++ "];" -- todo system build inputs here
        ,"  shellHook = ''"
        ," export LANG=en_US.UTF-8"
        ," eval $(egrep ^export ${ghc}/bin/ghc)"
